@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tacan solutions v1</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        background: #e8f0fe;
+        margin: 16px;
+      }
+
+      form,
+      li {
+        background: #fff;
+        border: 1px solid #ddd;
+        box-shadow: 3px 4px 8px rgba(0, 0, 0, 0.3);
+        border-radius: 2px;
+      }
+
+      form {
+        padding: 12px 16px;
+        display: inline-block;
+        margin-bottom: 16px;
+        font-size: 13px;
+      }
+
+      form p {
+        font-size: 12px;
+        margin: 8px 0 0;
+      }
+
+      ul {
+        list-style: none;
+        padding: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 32px;
+      }
+
+      li {
+        display: grid;
+        grid-template-columns: repeat(5, 31px);
+        grid-template-rows: repeat(6, 22px);
+        gap: 3px;
+        padding: 10px 10px 23px;
+        position: relative;
+      }
+
+      li small {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        font-size: 10px;
+        color: #666;
+        text-align: right;
+      }
+
+      li span {
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        background: #fff;
+        border: 2px solid #999;
+        border-radius: 50%;
+        pointer-events: none;
+      }
+
+      li b {
+        border: 2px solid transparent;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: 900;
+        line-height: 1;
+      }
+
+      li b:nth-child(5n + 3),
+      li b:nth-child(5n + 5) {
+        transform: translateY(calc(22px / 2 + 3px / 2));
+      }
+
+      b.brick {
+        background: #c2442d;
+        color: #f5b7a8;
+        border-color: #8b2e1e;
+      }
+      b.grain {
+        background: #f5d76e;
+        color: #8a6d0b;
+        border-color: #d4b42e;
+      }
+      b.lumber {
+        background: #2d6e3f;
+        color: #a8dfb8;
+        border-color: #1a4a28;
+      }
+      b.ore {
+        background: #808a87;
+        color: #d8dedd;
+        border-color: #5a6361;
+      }
+      b.wool {
+        background: #95c44e;
+        color: #3a5c12;
+        border-color: #6e9a2e;
+      }
+      b.gold {
+        background: #b8860b;
+        color: #fbe5a0;
+        border-color: #8a6508;
+      }
+    </style>
+  </head>
+  <body>
+    <form>
+      <label
+        ><input type="checkbox" id="cbEast" checked /> Force first triangle
+        pointing east</label
+      ><br />
+      <label
+        ><input type="checkbox" id="cbDedup" checked /> Remove duplicated
+        patterns</label
+      >
+      <p id="counter">Ready</p>
+    </form>
+    <ul id="out"></ul>
+    <script>
+      const B = 0b0000010;
+      const G = 0b0000100;
+      const L = 0b0001000;
+      const O = 0b0010000;
+      const W = 0b0100000;
+      const X = 0b1000000;
+
+      const res = {
+        [B]: "brick",
+        [G]: "grain",
+        [L]: "lumber",
+        [O]: "ore",
+        [W]: "wool",
+        [X]: "gold",
+      };
+
+      const vals = [B, G, L, O, W, X];
+
+      const triads = (() => {
+        const s = new Set();
+        for (let i = 0; i < 4; i++)
+          for (let j = i + 1; j < 5; j++)
+            for (let k = j + 1; k < 6; k++) s.add(vals[i] | vals[j] | vals[k]);
+        return s;
+      })();
+
+      function card(v) {
+        const b = document.createElement("b");
+        if (!v) {
+          b.style.visibility = "hidden";
+          return b;
+        }
+        b.textContent = Math.log2(v);
+        b.classList.add(res[v]);
+        return b;
+      }
+
+      function dot(el, x, y) {
+        const s = document.createElement("span");
+        s.style.left = x - 9 + "px";
+        s.style.top = y - 8 + "px";
+        el.appendChild(s);
+      }
+
+      function mkSol(g, n) {
+        const li = document.createElement("li");
+        const lbl = document.createElement("small");
+        lbl.textContent = n;
+        li.appendChild(lbl);
+
+        for (let r = 0; r < 6; r++)
+          for (let c = 0; c < 5; c++) li.appendChild(card(g[r][c]));
+
+        const cw = 31,
+          ch = 22,
+          gap = 3,
+          pad = 10,
+          sh = (ch + gap) / 2;
+
+        for (let cp = 0; cp < 4; cp++) {
+          const lx = pad + cp * (cw + gap) + cw / 2;
+          const rx = pad + (cp + 1) * (cw + gap) + cw / 2;
+          const mx = (lx + rx) / 2;
+          const dy = (cp + 1) % 2 === 1 ? 0 : sh;
+
+          for (let r = 0; r < 5; r++) {
+            const y1 = pad + r * (ch + gap) + ch / 2 + dy;
+            const y2 = pad + (r + 1) * (ch + gap) + ch / 2 + dy;
+            dot(li, mx, (y1 + y2) / 2);
+          }
+        }
+
+        return li;
+      }
+
+      const tris = (() => {
+        const t = [];
+        for (let r = 0; r < 5; r++)
+          for (let c = 0; c < 4; c++)
+            t.push(
+              c % 2 === 0
+                ? [
+                    [r, c],
+                    [r, c + 1],
+                    [r + 1, c],
+                  ]
+                : [
+                    [r, c],
+                    [r + 1, c],
+                    [r + 1, c + 1],
+                  ],
+            );
+        return t;
+      })();
+
+      const cellTri = (() => {
+        const m = {};
+        tris.forEach((t, i) => {
+          for (const [r, c] of t) {
+            const k = r * 5 + c;
+            if (!m[k]) m[k] = [];
+            m[k].push(i);
+          }
+        });
+        return m;
+      })();
+
+      const adjMap = (() => {
+        const covered = new Set();
+        for (const t of tris)
+          for (let i = 0; i < 3; i++)
+            for (let j = i + 1; j < 3; j++) {
+              const a = t[i][0] * 5 + t[i][1];
+              const b = t[j][0] * 5 + t[j][1];
+              covered.add(Math.min(a, b) + "," + Math.max(a, b));
+            }
+
+        const pairs = [];
+        for (let r = 0; r < 6; r++)
+          for (let c = 0; c < 5; c++) {
+            if (r + 1 < 6) {
+              const a = r * 5 + c,
+                b = (r + 1) * 5 + c;
+              const k = Math.min(a, b) + "," + Math.max(a, b);
+              if (!covered.has(k))
+                pairs.push([
+                  [r, c],
+                  [r + 1, c],
+                ]);
+            }
+            if (c + 1 < 5) {
+              const s = c % 2 === 0 ? 1 : -1;
+              const a1 = r * 5 + c,
+                b1 = r * 5 + c + 1;
+              const k1 = Math.min(a1, b1) + "," + Math.max(a1, b1);
+              if (!covered.has(k1))
+                pairs.push([
+                  [r, c],
+                  [r, c + 1],
+                ]);
+              const r2 = r + s;
+              if (r2 >= 0 && r2 < 6) {
+                const a2 = r * 5 + c,
+                  b2 = r2 * 5 + c + 1;
+                const k2 = Math.min(a2, b2) + "," + Math.max(a2, b2);
+                if (!covered.has(k2))
+                  pairs.push([
+                    [r, c],
+                    [r2, c + 1],
+                  ]);
+              }
+            }
+          }
+
+        const m = {};
+        for (const [a, b] of pairs) {
+          const ka = a[0] * 5 + a[1],
+            kb = b[0] * 5 + b[1];
+          if (!m[ka]) m[ka] = [];
+          if (!m[kb]) m[kb] = [];
+          m[ka].push(b);
+          m[kb].push(a);
+        }
+        return m;
+      })();
+
+      const cwOrd = tris.map((_, i) =>
+        (i % 4) % 2 === 0 ? [0, 1, 2] : [0, 2, 1],
+      );
+
+      function isCw(a, b, c) {
+        return (a < b && b < c) || (b < c && c < a) || (c < a && a < b);
+      }
+
+      function popcnt(n) {
+        let c = 0;
+        while (n) {
+          c++;
+          n &= n - 1;
+        }
+        return c;
+      }
+
+      function perms(arr) {
+        if (arr.length === 0) return [[]];
+        if (arr.length === 1) return [arr];
+        if (arr.length === 2) return [arr, [arr[1], arr[0]]];
+        const r = [];
+        for (let i = 0; i < arr.length; i++) {
+          const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
+          for (const p of perms(rest)) r.push([arr[i], ...p]);
+        }
+        return r;
+      }
+
+      function pat(g) {
+        const m = {};
+        let n = 0;
+        const abc = "abcdefghij";
+        let s = "";
+        for (let r = 0; r < 6; r++)
+          for (let c = 0; c < 5; c++) {
+            const v = g[r][c];
+            if (!v) {
+              s += "-";
+              continue;
+            }
+            if (!(v in m)) m[v] = abc[n++];
+            s += m[v];
+          }
+        return s;
+      }
+
+      const ul = document.getElementById("out");
+      const ctr = document.getElementById("counter");
+      const cbE = document.getElementById("cbEast");
+      const cbD = document.getElementById("cbDedup");
+      const MAX = 100000;
+
+      cbE.addEventListener("change", run);
+      cbD.addEventListener("change", run);
+
+      function run() {
+        ul.innerHTML = "";
+        ctr.textContent = "Searching...";
+
+        const east = cbE.checked;
+        const dedup = cbD.checked;
+
+        setTimeout(() => {
+          const g = Array.from({ length: 6 }, () => new Array(5).fill(0));
+          const tl = [...triads];
+          let used = 0;
+          const asgn = new Array(20).fill(false);
+          const pend = [];
+          const seen = new Set();
+
+          function solve() {
+            if (pend.length >= MAX) return;
+
+            let bi = -1,
+              bf = -1;
+            for (let ti = 0; ti < 20; ti++) {
+              if (asgn[ti]) continue;
+              let f = 0;
+              for (const [r, c] of tris[ti]) if (g[r][c]) f++;
+              if (f > bf) {
+                bf = f;
+                bi = ti;
+              }
+            }
+
+            if (bi === -1) {
+              if (used === (1 << 20) - 1) {
+                if (dedup) {
+                  const p = pat(g);
+                  if (seen.has(p)) return;
+                  seen.add(p);
+                }
+                pend.push(g.map((r) => [...r]));
+              }
+              return;
+            }
+
+            const tri = tris[bi];
+            const cv = tri.map(([r, c]) => g[r][c]);
+
+            for (let ti = 0; ti < 20; ti++) {
+              if (used & (1 << ti)) continue;
+              const td = tl[ti];
+
+              let ok = true;
+              for (const v of cv)
+                if (v && !(td & v)) {
+                  ok = false;
+                  break;
+                }
+              if (!ok) continue;
+
+              const ec = [];
+              let rm = td;
+              for (let i = 0; i < 3; i++) {
+                if (cv[i]) rm &= ~cv[i];
+                else ec.push(i);
+              }
+              const rv = vals.filter((v) => rm & v);
+              if (rv.length !== ec.length) continue;
+
+              for (const pm of perms(rv)) {
+                const pl = [];
+                let good = true;
+                for (let i = 0; i < ec.length; i++) {
+                  const [r, c] = tri[ec[i]];
+                  if (g[r][c]) {
+                    good = false;
+                    break;
+                  }
+                  g[r][c] = pm[i];
+                  pl.push([r, c]);
+                }
+                if (!good) {
+                  for (const [r, c] of pl) g[r][c] = 0;
+                  continue;
+                }
+
+                const cw = cwOrd[bi];
+                const va = g[tri[cw[0]][0]][tri[cw[0]][1]];
+                const vb = g[tri[cw[1]][0]][tri[cw[1]][1]];
+                const vc = g[tri[cw[2]][0]][tri[cw[2]][1]];
+
+                if (
+                  va &&
+                  vb &&
+                  vc &&
+                  !isCw(Math.log2(va), Math.log2(vb), Math.log2(vc))
+                ) {
+                  for (const [r, c] of pl) g[r][c] = 0;
+                  continue;
+                }
+
+                if (east && !asgn.includes(true) && va && vb && vc) {
+                  if (vc !== Math.min(va, vb, vc)) {
+                    for (const [r, c] of pl) g[r][c] = 0;
+                    continue;
+                  }
+                }
+
+                let adj = true;
+                for (const [r, c] of pl) {
+                  const nb = adjMap[r * 5 + c] || [];
+                  for (const [nr, nc] of nb)
+                    if (g[nr][nc] && g[nr][nc] === g[r][c]) {
+                      adj = false;
+                      break;
+                    }
+                  if (!adj) break;
+                }
+                if (!adj) {
+                  for (const [r, c] of pl) g[r][c] = 0;
+                  continue;
+                }
+
+                let valid = true;
+                for (const [r, c] of pl) {
+                  const aff = cellTri[r * 5 + c] || [];
+                  for (const oi of aff) {
+                    if (oi === bi || asgn[oi]) continue;
+                    const ot = tris[oi];
+                    const oc = ot.map(([r, c]) => g[r][c]);
+                    const fl = oc.filter((v) => v);
+                    const mk = fl.reduce((a, b) => a | b, 0);
+                    if (popcnt(mk) < fl.length) {
+                      valid = false;
+                      break;
+                    }
+                    if (fl.length === 3) {
+                      const ow = cwOrd[oi];
+                      const a = Math.log2(g[ot[ow[0]][0]][ot[ow[0]][1]]);
+                      const b = Math.log2(g[ot[ow[1]][0]][ot[ow[1]][1]]);
+                      const c = Math.log2(g[ot[ow[2]][0]][ot[ow[2]][1]]);
+                      if (!isCw(a, b, c)) {
+                        valid = false;
+                        break;
+                      }
+                    }
+                  }
+                  if (!valid) break;
+                }
+
+                if (valid) {
+                  used |= 1 << ti;
+                  asgn[bi] = true;
+                  solve();
+                  asgn[bi] = false;
+                  used &= ~(1 << ti);
+                }
+
+                for (const [r, c] of pl) g[r][c] = 0;
+              }
+            }
+          }
+
+          solve();
+          const tot = pend.length;
+          ctr.textContent =
+            tot + (tot >= MAX ? "+" : "") + " solutions found. Rendering...";
+
+          let rd = 0;
+          function flush() {
+            for (let i = 0; i < 200 && rd < pend.length; i++) {
+              rd++;
+              ul.appendChild(mkSol(pend[rd - 1], rd));
+            }
+            if (rd < pend.length) {
+              ctr.textContent = "Rendering " + rd + " / " + pend.length + "...";
+              setTimeout(flush, 0);
+            } else {
+              ctr.textContent =
+                tot + (tot >= MAX ? "+" : "") + " solutions found.";
+            }
+          }
+          setTimeout(flush, 0);
+        }, 10);
+      }
+
+      run();
+    </script>
+  </body>
+</html>
